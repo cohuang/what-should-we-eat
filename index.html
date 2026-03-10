@@ -114,8 +114,8 @@
       letter-spacing: 0.02em;
     }
 
-    /* ─── Spins counter ─────────────────────────────────────────── */
-    .spins-bar {
+    /* ─── Picks counter ─────────────────────────────────────────── */
+    .picks-bar {
       display: flex;
       align-items: center;
       gap: 10px;
@@ -124,14 +124,14 @@
       letter-spacing: 0.04em;
       text-transform: uppercase;
     }
-    .spin-dot {
+    .pick-dot {
       width: 10px; height: 10px;
       border-radius: 50%;
       background: var(--warm);
       border: 2px solid var(--rust);
       transition: background 0.3s var(--trans);
     }
-    .spin-dot.used { background: var(--rust); }
+    .pick-dot.used { background: var(--rust); }
 
     /* ─── Filters panel ─────────────────────────────────────────── */
     .filters {
@@ -263,22 +263,6 @@
     }
     .restaurant-card.dragging { cursor: grabbing; box-shadow: 0 20px 60px rgba(28,23,19,0.22); }
 
-    /* Swipe hint overlays */
-    .card-hint {
-      position: absolute;
-      top: 18px;
-      font-family: 'Playfair Display', serif;
-      font-size: 1.2rem;
-      font-weight: 900;
-      padding: 6px 14px;
-      border-radius: 8px;
-      border: 3px solid;
-      opacity: 0;
-      pointer-events: none;
-    }
-    .card-hint.nope { right: 18px; color: var(--red);   border-color: var(--red);   transform: rotate(8deg); }
-    .card-hint.yep  { left:  18px; color: var(--green); border-color: var(--green); transform: rotate(-8deg); }
-
     /* Card content */
     .card-name {
       font-family: 'Playfair Display', serif;
@@ -289,26 +273,18 @@
       color: var(--ink);
     }
     .card-meta {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: var(--ink);
       margin-bottom: 14px;
-    }
-    .card-badge {
       display: flex;
       align-items: center;
       gap: 6px;
-      font-size: 0.85rem;
-      font-weight: 500;
-      color: var(--muted);
+      flex-wrap: wrap;
     }
-    .card-badge .val { color: var(--ink); }
-    .badge-icon {
-      font-size: 0.8rem;
+    .dot-sep {
       color: var(--muted);
-      flex-shrink: 0;
-      width: 14px;
-      text-align: center;
+      font-weight: 300;
     }
     .card-address {
       font-size: 0.82rem;
@@ -330,8 +306,6 @@
     }
     .maps-link:hover { opacity: 0.7; }
 
-    /* Star rating */
-    .stars { color: var(--gold); font-size: 0.85rem; letter-spacing: 1px; }
 
     /* ─── Swipe action buttons ──────────────────────────────────── */
     .swipe-actions {
@@ -368,12 +342,10 @@
       cursor: default;
     }
     .chosen-card .card-name,
-    .chosen-card .card-address    { color: white; }
-    .chosen-card .card-badge      { color: rgba(255,255,255,0.75); }
-    .chosen-card .card-badge .val { color: white; }
+    .chosen-card .card-address,
+    .chosen-card .card-meta      { color: white; }
     .chosen-card .badge-icon      { color: rgba(255,255,255,0.65); }
     .chosen-card .maps-link       { color: rgba(255,255,255,0.9); border-color: rgba(255,255,255,0.5); }
-    .chosen-card .stars           { color: rgba(255,220,100,0.9); }
 
     /* ─── End states ────────────────────────────────────────────── */
     .end-card {
@@ -445,11 +417,11 @@
   </div>
 
   <!-- Spins indicator -->
-  <div class="spins-bar">
-    <div class="spin-dot" id="dot-0"></div>
-    <div class="spin-dot" id="dot-1"></div>
-    <div class="spin-dot" id="dot-2"></div>
-    <span id="spins-label">3 spins left</span>
+  <div class="picks-bar">
+    <div class="pick-dot" id="dot-0"></div>
+    <div class="pick-dot" id="dot-1"></div>
+    <div class="pick-dot" id="dot-2"></div>
+    <span id="spins-label">3 picks left</span>
   </div>
 
   <!-- Mock mode banner -->
@@ -517,7 +489,7 @@
 const state = {
   restaurants:       [],   // Current result set (from cache or API)
   shownIndexes:      [],   // Indexes already shown this session
-  spinsLeft:         3,
+  picksLeft:         3,
   userLat:           null,
   userLng:           null,
   currentRestaurant: null,
@@ -552,16 +524,16 @@ function showToast(msg, duration = 3000) {
 }
 
 // ── Spin dots ─────────────────────────────────────────────────────
-function updateSpinDots() {
+function updatePickDots() {
   for (let i = 0; i < 3; i++) {
     document.getElementById(`dot-${i}`)
-      .classList.toggle('used', i < (3 - state.spinsLeft));
+      .classList.toggle('used', i < (3 - state.picksLeft));
   }
   const label = document.getElementById('spins-label');
   label.textContent =
-    state.spinsLeft === 1 ? '1 spin left — make it count!' :
-    state.spinsLeft === 0 ? 'No spins left 😬' :
-    `${state.spinsLeft} spins left`;
+    state.picksLeft === 1 ? '1 pick left — make it count!' :
+    state.picksLeft === 0 ? 'No picks left' :
+    `${state.picksLeft} picks left`;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -672,7 +644,8 @@ const MOCK_RESTAURANTS = [
 // Returns mock data after a fake delay so it feels realistic
 async function fetchMock(cuisine) {
   await new Promise(r => setTimeout(r, 800)); // fake network delay
-  let results = [...MOCK_RESTAURANTS];
+  // Filter out closed restaurants
+  let results = MOCK_RESTAURANTS.filter(r => r.openNow !== false);
   if (cuisine) {
     // Loose filter — in mock mode just return all so you can test swiping
     // (real API filters by keyword server-side)
@@ -716,8 +689,8 @@ async function fetchFromAPI(lat, lng, radiusM, cuisine) {
   // Count this as a successful API call
   incrementCallCount();
 
-  // Map to our internal format
-  return (data.results || []).map(place => ({
+  // Map to our internal format, filtering out closed restaurants
+  return (data.results || []).filter(place => place.opening_hours?.open_now !== false).map(place => ({
     name:       place.name,
     rating:     place.rating || null,
     totalRatings: place.user_ratings_total || 0,
@@ -810,39 +783,14 @@ function renderCard(restaurant, chosen = false) {
     ? distanceKm(state.userLat, state.userLng, restaurant.lat, restaurant.lng)
     : null;
 
-  const distStr = dist !== null ? `${dist.toFixed(1)}km away` : '';
+  const distStr = dist !== null ? `${dist.toFixed(1)} km` : '';
 
-  // Rating badge
-  const ratingBadge = restaurant.rating
-    ? `<div class="card-badge">
-         <i class="fa-solid fa-star badge-icon"></i>
-         <span class="val">${restaurant.rating}</span>
-         <span class="stars">${starsFor(restaurant.rating)}</span>
-       </div>`
-    : '';
-
-  // Distance badge
-  const distBadge = distStr
-    ? `<div class="card-badge">
-         <i class="fa-solid fa-location-dot badge-icon"></i>
-         <span class="val">${distStr}</span>
-       </div>`
-    : '';
-
-  // Price level badge ($, $$, etc.)
-  const priceBadge = restaurant.priceLevel
-    ? `<div class="card-badge">
-         <i class="fa-solid fa-dollar-sign badge-icon"></i>
-         <span class="val">${'$'.repeat(restaurant.priceLevel)}</span>
-       </div>`
-    : '';
-
-  // Open now badge
-  const openBadge = restaurant.openNow === true
-    ? `<div class="card-badge"><i class="fa-solid fa-circle-check badge-icon" style="color:var(--green)"></i><span class="val" style="color:var(--green)">Open now</span></div>`
-    : restaurant.openNow === false
-    ? `<div class="card-badge"><i class="fa-solid fa-circle-xmark badge-icon" style="color:var(--red)"></i><span class="val" style="color:var(--red)">Closed</span></div>`
-    : '';
+  // Build dot-separated meta string: 3.9 ★ · $$ · 1.2 km
+  const parts = [];
+  if (restaurant.rating)    parts.push(`${restaurant.rating} <i class="fa-solid fa-star" style="color:var(--gold);font-size:0.75rem"></i>`);
+  if (restaurant.priceLevel) parts.push('$'.repeat(restaurant.priceLevel));
+  if (distStr)              parts.push(distStr);
+  const metaStr = parts.join(' <span class="dot-sep">·</span> ');
 
   // Google Maps link
   const mapsUrl = `https://www.google.com/maps/place/?q=place_id:${restaurant.placeId}`;
@@ -853,16 +801,9 @@ function renderCard(restaurant, chosen = false) {
 
   cardArea.innerHTML = `
     <div class="restaurant-card card-enter${chosen ? ' chosen-card' : ''}" id="the-card">
-      <div class="card-hint yep"  id="hint-yep" >YEP!</div>
-      <div class="card-hint nope" id="hint-nope">NOPE</div>
       ${chosenHeader}
       <div class="card-name">${restaurant.name}</div>
-      <div class="card-meta">
-        ${ratingBadge}
-        ${priceBadge}
-        ${distBadge}
-        ${openBadge}
-      </div>
+      <div class="card-meta">${metaStr}</div>
       <div class="card-address">${restaurant.address}</div>
       <a class="maps-link" href="${mapsUrl}" target="_blank" rel="noopener">
         Open in Google Maps
@@ -879,12 +820,6 @@ function setupSwipe() {
   if (!card) return;
   let startX = 0, startY = 0, currentX = 0, isDragging = false;
 
-  function setHints(x) {
-    const t = 40;
-    document.getElementById('hint-yep').style.opacity  = x >  t ? Math.min(( x - t) / 80, 1) : 0;
-    document.getElementById('hint-nope').style.opacity = x < -t ? Math.min((-x - t) / 80, 1) : 0;
-  }
-
   card.addEventListener('pointerdown', e => {
     isDragging = true;
     startX = e.clientX; startY = e.clientY;
@@ -896,7 +831,6 @@ function setupSwipe() {
     if (!isDragging) return;
     currentX = e.clientX - startX;
     card.style.transform = `translateX(${currentX}px) translateY(${(e.clientY - startY) * 0.3}px) rotate(${currentX * 0.06}deg)`;
-    setHints(currentX);
   });
   document.addEventListener('pointerup', () => {
     if (!isDragging) return;
@@ -905,7 +839,7 @@ function setupSwipe() {
     card.style.transition = '';
     if      (currentX >  100) handleYes();
     else if (currentX < -100) handleNo();
-    else { card.style.transform = ''; setHints(0); }
+    else { card.style.transform = ''; }
     currentX = 0;
   });
 }
@@ -914,9 +848,10 @@ function setupSwipe() {
 async function handleNo() {
   const card = document.getElementById('the-card');
   if (card) { card.classList.add('fly-left'); await sleep(380); }
-  state.spinsLeft--;
-  updateSpinDots();
-  if (state.spinsLeft <= 0) { showNoSpins(); return; }
+  state.picksLeft--;
+  sessionStorage.setItem('picksLeft', state.picksLeft);
+  updatePickDots();
+  if (state.picksLeft <= 0) { showNoPicks(); return; }
   showToast('Fine, next one... 👀');
   await pickAndShow();
 }
@@ -932,20 +867,25 @@ function handleYes() {
   ctaBtn.onclick = resetApp;
 }
 
-// ── No spins left ─────────────────────────────────────────────────
-function showNoSpins() {
+// ── Restore no-picks state on page load (if already exhausted) ───
+function showNoPicksOnLoad() {
+  ctaBtn.disabled = true;
+  document.getElementById('filters').style.display = 'none';
+  showNoPicks();
+}
+
+// ── No picks left ─────────────────────────────────────────────────
+function showNoPicks() {
   swipeActions.classList.add('hidden');
   swipeHint.classList.add('hidden');
   cardArea.innerHTML = `
     <div class="end-card card-enter">
-      <span class="emoji">😅</span>
-      <h2>That's your lot, mate</h2>
-      <p>You've used all 3 spins.<br>Time to pick one or just eat at home.</p>
+      <span class="emoji">😬</span>
+      <h2>You're out of picks</h2>
+      <p>You've had your 3 chances.<br>Time to commit to one of those options.</p>
     </div>
   `;
-  ctaBtn.textContent = '🔄  Try again';
-  ctaBtn.disabled = false;
-  ctaBtn.onclick = resetApp;
+  ctaBtn.style.display = 'none';
 }
 
 // ── API limit reached ─────────────────────────────────────────────
@@ -1000,15 +940,17 @@ async function pickAndShow() {
 
 // ── Reset ─────────────────────────────────────────────────────────
 function resetApp() {
-  state.spinsLeft         = 3;
+  state.picksLeft         = 3;
+  sessionStorage.removeItem('picksLeft');
   state.restaurants       = [];
   state.shownIndexes      = [];
   state.currentRestaurant = null;
-  updateSpinDots();
+  updatePickDots();
   cardArea.classList.add('hidden');
   cardArea.innerHTML = '';
   swipeActions.classList.add('hidden');
   swipeHint.classList.add('hidden');
+  ctaBtn.style.display = '';
   ctaBtn.textContent = '🍽️  Where should we eat?';
   ctaBtn.onclick = onCtaClick;
   ctaBtn.disabled = false;
@@ -1088,7 +1030,17 @@ btnYes.addEventListener('click', handleYes);
 ctaBtn.addEventListener('click', onCtaClick);
 
 // ── Init ──────────────────────────────────────────────────────────
-updateSpinDots();
+// Restore picks from sessionStorage so page refresh doesn't reset the counter
+const savedPicks = sessionStorage.getItem('picksLeft');
+if (savedPicks !== null) {
+  state.picksLeft = parseInt(savedPicks, 10);
+  // If they were already out of picks when they refreshed, show the end card
+  if (state.picksLeft <= 0) {
+    // Defer until DOM is ready
+    setTimeout(showNoPicksOnLoad, 0);
+  }
+}
+updatePickDots();
 if (MOCK_MODE) {
   document.getElementById('mock-banner').classList.remove('hidden');
 }
