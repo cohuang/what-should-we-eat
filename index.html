@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Where Should We Eat?</title>
+
+  <!-- ============================================================
+    GOOGLE PLACES API KEY
+    1. Go to https://console.cloud.google.com/
+    2. Create a project → Enable "Places API"
+    3. Create an API key under APIs & Services → Credentials
+    4. Paste it below
+
+    CALL LIMIT
+    MONTHLY_CALL_LIMIT below is your hard cap.
+    At $0.032 per call, 500 calls ≈ $16/month.
+    The free monthly credit is $200, so 500 is very conservative.
+    Raise it once you're comfortable with usage.
+  ============================================================ -->
+  <script>
+    const GOOGLE_API_KEY     = 'YOUR_API_KEY_HERE';
+    const MONTHLY_CALL_LIMIT = 500;
+    const CACHE_TTL_HOURS    = 24; // How long to cache results in localStorage
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <style>
+    /* ─── CSS Variables ─────────────────────────────────────────── */
+    :root {
+      --cream:   #FAF6EF;
+      --warm:    #F2E8D9;
+      --rust:    #C1440E;
+      --rust-dk: #9C3209;
+      --gold:    #E8A020;
+      --ink:     #1C1713;
+      --muted:   #7A6E63;
+      --green:   #2D7A4F;
+      --red:     #C1440E;
+      --card-r:  18px;
+      --trans:   cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ─── Reset & Base ──────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--cream);
+      color: var(--ink);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+    }
+
+    /* ─── Decorative background blobs ──────────────────────────── */
+    body::before, body::after {
+      content: '';
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 0;
+    }
+    body::before {
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(232,160,32,0.12) 0%, transparent 70%);
+      top: -150px; right: -150px;
+    }
+    body::after {
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(193,68,14,0.10) 0%, transparent 70%);
+      bottom: -100px; left: -100px;
+    }
+
+    /* ─── Main wrapper ──────────────────────────────────────────── */
+    #app {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 440px;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+
+    /* ─── Header ────────────────────────────────────────────────── */
+    .header { text-align: center; }
+    .header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 7vw, 2.8rem);
+      font-weight: 900;
+      line-height: 1.1;
+      color: var(--ink);
+    }
+    .header h1 span { color: var(--rust); }
+    .header p {
+      margin-top: 8px;
+      font-size: 0.92rem;
+      color: var(--muted);
+      font-weight: 300;
+      letter-spacing: 0.02em;
+    }
+
+    /* ─── Spins counter ─────────────────────────────────────────── */
+    .spins-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .spin-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--warm);
+      border: 2px solid var(--rust);
+      transition: background 0.3s var(--trans);
+    }
+    .spin-dot.used { background: var(--rust); }
+
+    /* ─── Filters panel ─────────────────────────────────────────── */
+    .filters {
+      width: 100%;
+      background: var(--warm);
+      border-radius: var(--card-r);
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .filter-row { display: flex; flex-direction: column; gap: 6px; }
+    .filter-row label {
+      font-size: 0.78rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+    .filter-row select,
+    .filter-row input[type=range] { width: 100%; }
+
+    select {
+      appearance: none;
+      background: var(--cream) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237A6E63' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 14px center;
+      border: 1.5px solid rgba(0,0,0,0.1);
+      border-radius: 10px;
+      padding: 10px 36px 10px 14px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem;
+      color: var(--ink);
+      cursor: pointer;
+    }
+    select:focus { outline: none; border-color: var(--rust); }
+
+    /* Range slider */
+    input[type=range] {
+      -webkit-appearance: none;
+      height: 4px;
+      border-radius: 4px;
+      background: linear-gradient(to right, var(--rust) 0%, var(--rust) var(--pct, 15%), rgba(0,0,0,0.1) var(--pct, 15%));
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--rust);
+      border: 3px solid white;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+    .range-label {
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: var(--rust);
+      text-align: right;
+    }
+
+    /* ─── Main CTA button ───────────────────────────────────────── */
+    #cta-btn {
+      width: 100%;
+      padding: 20px 28px;
+      font-family: 'Playfair Display', serif;
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: white;
+      background: var(--rust);
+      border: none;
+      border-radius: var(--card-r);
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(193,68,14,0.35);
+      transition: transform 0.15s var(--trans), box-shadow 0.15s var(--trans), background 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    #cta-btn:hover:not(:disabled) {
+      background: var(--rust-dk);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(193,68,14,0.4);
+    }
+    #cta-btn:active:not(:disabled) { transform: translateY(0); }
+    #cta-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    #cta-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.18) 50%, transparent 60%);
+      transform: translateX(-100%);
+    }
+    #cta-btn:hover::after { animation: shimmer 0.6s forwards; }
+    @keyframes shimmer { to { transform: translateX(100%); } }
+
+    /* ─── Loading dots ──────────────────────────────────────────── */
+    .loading-dots {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      align-items: center;
+      height: 20px;
+    }
+    .loading-dots span {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: white;
+      animation: bounce 0.8s ease-in-out infinite;
+    }
+    .loading-dots span:nth-child(2) { animation-delay: 0.15s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0.30s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0.7); opacity: 0.5; }
+      40%           { transform: scale(1.1); opacity: 1; }
+    }
+
+    /* ─── Restaurant card ───────────────────────────────────────── */
+    #card-area { width: 100%; perspective: 1000px; }
+
+    .restaurant-card {
+      width: 100%;
+      background: white;
+      border-radius: var(--card-r);
+      padding: 28px 24px 24px;
+      box-shadow: 0 8px 40px rgba(28,23,19,0.12);
+      position: relative;
+      touch-action: none;
+      user-select: none;
+      cursor: grab;
+      transform-origin: center bottom;
+      transition: box-shadow 0.2s;
+    }
+    .restaurant-card.dragging { cursor: grabbing; box-shadow: 0 20px 60px rgba(28,23,19,0.22); }
+
+    /* Swipe hint overlays */
+    .card-hint {
+      position: absolute;
+      top: 18px;
+      font-family: 'Playfair Display', serif;
+      font-size: 1.2rem;
+      font-weight: 900;
+      padding: 6px 14px;
+      border-radius: 8px;
+      border: 3px solid;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .card-hint.nope { right: 18px; color: var(--red);   border-color: var(--red);   transform: rotate(8deg); }
+    .card-hint.yep  { left:  18px; color: var(--green); border-color: var(--green); transform: rotate(-8deg); }
+
+    /* Card content */
+    .card-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 10px;
+      color: var(--ink);
+    }
+    .card-meta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .card-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--muted);
+    }
+    .card-badge .val { color: var(--ink); }
+    .badge-icon {
+      font-size: 0.8rem;
+      color: var(--muted);
+      flex-shrink: 0;
+      width: 14px;
+      text-align: center;
+    }
+    .card-address {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 18px;
+      line-height: 1.4;
+    }
+    .maps-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--rust);
+      text-decoration: none;
+      border-bottom: 1.5px solid var(--rust);
+      padding-bottom: 1px;
+      transition: opacity 0.15s;
+    }
+    .maps-link:hover { opacity: 0.7; }
+
+    /* Star rating */
+    .stars { color: var(--gold); font-size: 0.85rem; letter-spacing: 1px; }
+
+    /* ─── Swipe action buttons ──────────────────────────────────── */
+    .swipe-actions {
+      display: flex;
+      gap: 16px;
+      width: 100%;
+    }
+    .swipe-btn {
+      flex: 1;
+      padding: 14px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 500;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 0.15s, opacity 0.15s;
+    }
+    .swipe-btn:hover { transform: scale(1.04); }
+    .swipe-btn.no  { background: rgba(193,68,14,0.10); color: var(--red); }
+    .swipe-btn.yes { background: rgba(45,122,79,0.10);  color: var(--green); }
+
+    /* Swipe hint text */
+    .swipe-hint {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-align: center;
+      letter-spacing: 0.02em;
+    }
+
+    /* ─── Chosen / success card ─────────────────────────────────── */
+    .chosen-card {
+      background: linear-gradient(135deg, var(--green) 0%, #1a5c38 100%);
+      cursor: default;
+    }
+    .chosen-card .card-name,
+    .chosen-card .card-address    { color: white; }
+    .chosen-card .card-badge      { color: rgba(255,255,255,0.75); }
+    .chosen-card .card-badge .val { color: white; }
+    .chosen-card .badge-icon      { color: rgba(255,255,255,0.65); }
+    .chosen-card .maps-link       { color: rgba(255,255,255,0.9); border-color: rgba(255,255,255,0.5); }
+    .chosen-card .stars           { color: rgba(255,220,100,0.9); }
+
+    /* ─── End states ────────────────────────────────────────────── */
+    .end-card {
+      text-align: center;
+      padding: 28px 20px;
+      background: white;
+      border-radius: var(--card-r);
+      box-shadow: 0 8px 40px rgba(28,23,19,0.08);
+    }
+    .end-card .emoji { font-size: 2.5rem; display: block; margin-bottom: 12px; }
+    .end-card h2 { font-family: 'Playfair Display', serif; font-size: 1.3rem; margin-bottom: 8px; }
+    .end-card p  { font-size: 0.88rem; color: var(--muted); line-height: 1.5; }
+
+    /* ─── Animations ────────────────────────────────────────────── */
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(30px) scale(0.95); }
+      to   { opacity: 1; transform: translateY(0)    scale(1); }
+    }
+    .card-enter { animation: cardIn 0.4s var(--trans) forwards; }
+
+    @keyframes flyLeft  { to { opacity: 0; transform: translateX(-140%) rotate(-25deg); } }
+    @keyframes flyRight { to { opacity: 0; transform: translateX( 140%) rotate( 25deg); } }
+    .fly-left  { animation: flyLeft  0.38s var(--trans) forwards; }
+    .fly-right { animation: flyRight 0.38s var(--trans) forwards; }
+
+    /* ─── Toast ─────────────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--ink);
+      color: white;
+      font-size: 0.85rem;
+      padding: 10px 20px;
+      border-radius: 100px;
+      white-space: nowrap;
+      pointer-events: none;
+      transition: transform 0.3s var(--trans), opacity 0.3s;
+      opacity: 0;
+      z-index: 100;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    /* ─── Utilities ─────────────────────────────────────────────── */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Where should<br>we <span>eat?</span></h1>
+    <p>Let fate decide. Your stomach will thank you.</p>
+  </div>
+
+  <!-- Spins indicator -->
+  <div class="spins-bar">
+    <div class="spin-dot" id="dot-0"></div>
+    <div class="spin-dot" id="dot-1"></div>
+    <div class="spin-dot" id="dot-2"></div>
+    <span id="spins-label">3 spins left</span>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters" id="filters">
+    <div class="filter-row">
+      <label>Cuisine vibe</label>
+      <select id="cuisine-filter">
+        <option value="">Surprise me</option>
+        <option value="Thai">Thai</option>
+        <option value="Japanese">Japanese</option>
+        <option value="Italian">Italian</option>
+        <option value="Chinese">Chinese</option>
+        <option value="Mexican">Mexican</option>
+        <option value="Indian">Indian</option>
+        <option value="Korean">Korean</option>
+        <option value="Vietnamese">Vietnamese</option>
+        <option value="Mediterranean">Mediterranean</option>
+        <option value="American">American</option>
+        <option value="French">French</option>
+        <option value="Greek">Greek</option>
+      </select>
+    </div>
+    <div class="filter-row">
+      <label>Search radius</label>
+      <input type="range" id="radius-slider" min="500" max="5000" step="500" value="3000" />
+      <div class="range-label" id="radius-label">3 km</div>
+    </div>
+  </div>
+
+  <!-- Main CTA -->
+  <button id="cta-btn">🍽️ &nbsp;Where should we eat?</button>
+
+  <!-- Restaurant card (injected by JS) -->
+  <div id="card-area" class="hidden"></div>
+
+  <!-- Swipe buttons -->
+  <div id="swipe-actions" class="swipe-actions hidden">
+    <button class="swipe-btn no"  id="btn-no" >👎 &nbsp;Nope</button>
+    <button class="swipe-btn yes" id="btn-yes">👍 &nbsp;Let's go!</button>
+  </div>
+
+  <!-- Swipe hint -->
+  <div id="swipe-hint" class="swipe-hint hidden">
+    ← swipe left to skip &nbsp;·&nbsp; swipe right to vibe ✌️
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+/* ================================================================
+   WHERE SHOULD WE EAT?
+   Uses Google Places Nearby Search API with:
+     - Session cache    (in-memory, cleared on page reload)
+     - localStorage cache (persists for CACHE_TTL_HOURS)
+     - Hard monthly call limit stored in localStorage
+   ================================================================ */
+
+// ── State ─────────────────────────────────────────────────────────
+const state = {
+  restaurants:       [],   // Current result set (from cache or API)
+  shownIndexes:      [],   // Indexes already shown this session
+  spinsLeft:         3,
+  userLat:           null,
+  userLng:           null,
+  currentRestaurant: null,
+  isLoading:         false,
+  // Session cache: keyed by "lat,lng,radius,cuisine"
+  // so changing filters doesn't re-use stale results
+  sessionCache:      {},
+};
+
+// ── DOM refs ───────────────────────────────────────────────────────
+const ctaBtn        = document.getElementById('cta-btn');
+const cardArea      = document.getElementById('card-area');
+const swipeActions  = document.getElementById('swipe-actions');
+const swipeHint     = document.getElementById('swipe-hint');
+const btnNo         = document.getElementById('btn-no');
+const btnYes        = document.getElementById('btn-yes');
+const radiusSlider  = document.getElementById('radius-slider');
+const radiusLabel   = document.getElementById('radius-label');
+const cuisineFilter = document.getElementById('cuisine-filter');
+const toast         = document.getElementById('toast');
+
+// ── Utility: sleep ─────────────────────────────────────────────────
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ── Toast ──────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, duration = 3000) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
+}
+
+// ── Spin dots ─────────────────────────────────────────────────────
+function updateSpinDots() {
+  for (let i = 0; i < 3; i++) {
+    document.getElementById(`dot-${i}`)
+      .classList.toggle('used', i < (3 - state.spinsLeft));
+  }
+  const label = document.getElementById('spins-label');
+  label.textContent =
+    state.spinsLeft === 1 ? '1 spin left — make it count!' :
+    state.spinsLeft === 0 ? 'No spins left 😬' :
+    `${state.spinsLeft} spins left`;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  API CALL LIMITER
+//  Tracks calls per calendar month in localStorage.
+//  Key: "api_calls_YYYY-MM"  Value: number of calls made
+// ══════════════════════════════════════════════════════════════════
+
+function getMonthKey() {
+  const d = new Date();
+  return `api_calls_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function getCallCount() {
+  return parseInt(localStorage.getItem(getMonthKey()) || '0', 10);
+}
+
+function incrementCallCount() {
+  const key = getMonthKey();
+  const current = getCallCount();
+  localStorage.setItem(key, current + 1);
+}
+
+function isLimitReached() {
+  return getCallCount() >= MONTHLY_CALL_LIMIT;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  LOCALSTORAGE CACHE
+//  Results are stored as JSON with a timestamp.
+//  Entries older than CACHE_TTL_HOURS are ignored.
+//  Cache key is based on snapped lat/lng + radius + cuisine so
+//  nearby locations reuse results without being too imprecise.
+// ══════════════════════════════════════════════════════════════════
+
+// Snap coordinates to ~500m grid to maximise cache hits for users
+// who are roughly in the same area across sessions
+function snapCoord(val) {
+  return Math.round(val * 200) / 200; // ~0.005° ≈ 500m
+}
+
+function cacheKey(lat, lng, radius, cuisine) {
+  return `places_${snapCoord(lat)}_${snapCoord(lng)}_${radius}_${cuisine || 'any'}`;
+}
+
+function readCache(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const { timestamp, data } = JSON.parse(raw);
+    const ageHours = (Date.now() - timestamp) / 1000 / 3600;
+    if (ageHours > CACHE_TTL_HOURS) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(key, data) {
+  try {
+    localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data }));
+  } catch {
+    // localStorage might be full — fail silently
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  GOOGLE PLACES API
+// ══════════════════════════════════════════════════════════════════
+
+// Haversine distance in km
+function distanceKm(lat1, lng1, lat2, lng2) {
+  const R    = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a    = Math.sin(dLat / 2) ** 2
+             + Math.cos(lat1 * Math.PI / 180)
+             * Math.cos(lat2 * Math.PI / 180)
+             * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Star string from numeric rating
+function starsFor(rating) {
+  const full  = Math.floor(rating);
+  const half  = (rating - full) >= 0.5 ? 1 : 0;
+  const empty = 5 - full - half;
+  return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(empty);
+}
+
+// Fetch from Google Places Nearby Search.
+// Returns an array of cleaned restaurant objects.
+// Throws if the API call limit has been reached.
+async function fetchFromAPI(lat, lng, radiusM, cuisine) {
+
+  // ── Hard limit check ─────────────────────────────────────────
+  if (isLimitReached()) {
+    throw new LimitError(
+      `Monthly API call limit of ${MONTHLY_CALL_LIMIT} reached. ` +
+      `Resets on the 1st of next month.`
+    );
+  }
+
+  // Build the Places Nearby Search URL.
+  // The API doesn't support CORS from browsers on the JSON endpoint,
+  // so we route through a lightweight CORS proxy for development.
+  // For production on Vercel, replace this with a serverless function
+  // (see comment at the bottom of this file).
+  let url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json`
+          + `?location=${lat},${lng}`
+          + `&radius=${radiusM}`
+          + `&type=restaurant`
+          + `&key=${GOOGLE_API_KEY}`;
+
+  if (cuisine) url += `&keyword=${encodeURIComponent(cuisine)}`;
+
+  const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+
+  const res = await fetch(proxyUrl);
+  if (!res.ok) throw new Error(`Network error: ${res.status}`);
+  const data = await res.json();
+
+  if (data.status === 'REQUEST_DENIED') {
+    throw new Error('API key error: ' + (data.error_message || 'Check your key in the script tag.'));
+  }
+  if (data.status === 'ZERO_RESULTS') return [];
+  if (data.status !== 'OK') throw new Error('Places API: ' + data.status);
+
+  // Count this as a successful API call
+  incrementCallCount();
+
+  // Map to our internal format
+  return (data.results || []).map(place => ({
+    name:       place.name,
+    rating:     place.rating || null,
+    totalRatings: place.user_ratings_total || 0,
+    address:    place.vicinity || '',
+    lat:        place.geometry.location.lat,
+    lng:        place.geometry.location.lng,
+    placeId:    place.place_id,
+    priceLevel: place.price_level || null,
+    openNow:    place.opening_hours?.open_now ?? null,
+  }));
+}
+
+// Custom error class so we can distinguish limit errors from API errors
+class LimitError extends Error {
+  constructor(msg) { super(msg); this.name = 'LimitError'; }
+}
+
+// ── Main data-fetch function with cache layers ─────────────────────
+// 1. Check in-memory session cache (free, instant)
+// 2. Check localStorage cache (free, persists across reloads)
+// 3. Call the API (costs a credit, increments counter)
+async function getRestaurants(lat, lng, radiusM, cuisine) {
+  const key = cacheKey(lat, lng, radiusM, cuisine);
+
+  // Layer 1: session cache
+  if (state.sessionCache[key]) {
+    console.log('[cache] session hit:', key);
+    return state.sessionCache[key];
+  }
+
+  // Layer 2: localStorage cache
+  const cached = readCache(key);
+  if (cached) {
+    console.log('[cache] localStorage hit:', key);
+    state.sessionCache[key] = cached; // promote to session
+    return cached;
+  }
+
+  // Layer 3: live API call
+  console.log(`[api] fetching (call ${getCallCount() + 1}/${MONTHLY_CALL_LIMIT}):`, key);
+  const results = await fetchFromAPI(lat, lng, radiusM, cuisine);
+
+  // Store in both cache layers
+  writeCache(key, results);
+  state.sessionCache[key] = results;
+
+  return results;
+}
+
+// ── Get user location ──────────────────────────────────────────────
+function getUserLocation() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('Geolocation not supported.'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      ()  => reject(new Error('Could not get your location. Please allow location access.'))
+    );
+  });
+}
+
+// ── Pick random unseen restaurant ─────────────────────────────────
+function pickRandom() {
+  const unseen = state.restaurants
+    .map((_, i) => i)
+    .filter(i => !state.shownIndexes.includes(i));
+  if (unseen.length === 0) {
+    state.shownIndexes = [];
+    return state.restaurants[Math.floor(Math.random() * state.restaurants.length)];
+  }
+  const idx = unseen[Math.floor(Math.random() * unseen.length)];
+  state.shownIndexes.push(idx);
+  return state.restaurants[idx];
+}
+
+// ── Render restaurant card ─────────────────────────────────────────
+function renderCard(restaurant, chosen = false) {
+  const dist = state.userLat !== null
+    ? distanceKm(state.userLat, state.userLng, restaurant.lat, restaurant.lng)
+    : null;
+
+  const distStr = dist !== null ? `${dist.toFixed(1)}km away` : '';
+
+  // Rating badge
+  const ratingBadge = restaurant.rating
+    ? `<div class="card-badge">
+         <i class="fa-solid fa-star badge-icon"></i>
+         <span class="val">${restaurant.rating}</span>
+         <span class="stars">${starsFor(restaurant.rating)}</span>
+       </div>`
+    : '';
+
+  // Distance badge
+  const distBadge = distStr
+    ? `<div class="card-badge">
+         <i class="fa-solid fa-location-dot badge-icon"></i>
+         <span class="val">${distStr}</span>
+       </div>`
+    : '';
+
+  // Price level badge ($, $$, etc.)
+  const priceBadge = restaurant.priceLevel
+    ? `<div class="card-badge">
+         <i class="fa-solid fa-dollar-sign badge-icon"></i>
+         <span class="val">${'$'.repeat(restaurant.priceLevel)}</span>
+       </div>`
+    : '';
+
+  // Open now badge
+  const openBadge = restaurant.openNow === true
+    ? `<div class="card-badge"><i class="fa-solid fa-circle-check badge-icon" style="color:var(--green)"></i><span class="val" style="color:var(--green)">Open now</span></div>`
+    : restaurant.openNow === false
+    ? `<div class="card-badge"><i class="fa-solid fa-circle-xmark badge-icon" style="color:var(--red)"></i><span class="val" style="color:var(--red)">Closed</span></div>`
+    : '';
+
+  // Google Maps link
+  const mapsUrl = `https://www.google.com/maps/place/?q=place_id:${restaurant.placeId}`;
+
+  const chosenHeader = chosen
+    ? `<div style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;opacity:0.75;">You're going to...</div>`
+    : '';
+
+  cardArea.innerHTML = `
+    <div class="restaurant-card card-enter${chosen ? ' chosen-card' : ''}" id="the-card">
+      <div class="card-hint yep"  id="hint-yep" >YEP!</div>
+      <div class="card-hint nope" id="hint-nope">NOPE</div>
+      ${chosenHeader}
+      <div class="card-name">${restaurant.name}</div>
+      <div class="card-meta">
+        ${ratingBadge}
+        ${priceBadge}
+        ${distBadge}
+        ${openBadge}
+      </div>
+      <div class="card-address">${restaurant.address}</div>
+      <a class="maps-link" href="${mapsUrl}" target="_blank" rel="noopener">
+        Open in Google Maps
+      </a>
+    </div>
+  `;
+
+  if (!chosen) setupSwipe();
+}
+
+// ── Swipe interaction ──────────────────────────────────────────────
+function setupSwipe() {
+  const card = document.getElementById('the-card');
+  if (!card) return;
+  let startX = 0, startY = 0, currentX = 0, isDragging = false;
+
+  function setHints(x) {
+    const t = 40;
+    document.getElementById('hint-yep').style.opacity  = x >  t ? Math.min(( x - t) / 80, 1) : 0;
+    document.getElementById('hint-nope').style.opacity = x < -t ? Math.min((-x - t) / 80, 1) : 0;
+  }
+
+  card.addEventListener('pointerdown', e => {
+    isDragging = true;
+    startX = e.clientX; startY = e.clientY;
+    card.classList.add('dragging');
+    card.style.transition = 'none';
+    e.preventDefault();
+  });
+  document.addEventListener('pointermove', e => {
+    if (!isDragging) return;
+    currentX = e.clientX - startX;
+    card.style.transform = `translateX(${currentX}px) translateY(${(e.clientY - startY) * 0.3}px) rotate(${currentX * 0.06}deg)`;
+    setHints(currentX);
+  });
+  document.addEventListener('pointerup', () => {
+    if (!isDragging) return;
+    isDragging = false;
+    card.classList.remove('dragging');
+    card.style.transition = '';
+    if      (currentX >  100) handleYes();
+    else if (currentX < -100) handleNo();
+    else { card.style.transform = ''; setHints(0); }
+    currentX = 0;
+  });
+}
+
+// ── Handle NO ─────────────────────────────────────────────────────
+async function handleNo() {
+  const card = document.getElementById('the-card');
+  if (card) { card.classList.add('fly-left'); await sleep(380); }
+  state.spinsLeft--;
+  updateSpinDots();
+  if (state.spinsLeft <= 0) { showNoSpins(); return; }
+  showToast('Fine, next one... 👀');
+  await pickAndShow();
+}
+
+// ── Handle YES ────────────────────────────────────────────────────
+function handleYes() {
+  swipeActions.classList.add('hidden');
+  swipeHint.classList.add('hidden');
+  renderCard(state.currentRestaurant, true);
+  showToast("Yesss! Let's eat 🎉", 4000);
+  ctaBtn.textContent = '🔄  Start over';
+  ctaBtn.disabled = false;
+  ctaBtn.onclick = resetApp;
+}
+
+// ── No spins left ─────────────────────────────────────────────────
+function showNoSpins() {
+  swipeActions.classList.add('hidden');
+  swipeHint.classList.add('hidden');
+  cardArea.innerHTML = `
+    <div class="end-card card-enter">
+      <span class="emoji">😅</span>
+      <h2>That's your lot, mate</h2>
+      <p>You've used all 3 spins.<br>Time to pick one or just eat at home.</p>
+    </div>
+  `;
+  ctaBtn.textContent = '🔄  Try again';
+  ctaBtn.disabled = false;
+  ctaBtn.onclick = resetApp;
+}
+
+// ── API limit reached ─────────────────────────────────────────────
+function showLimitReached() {
+  cardArea.classList.remove('hidden');
+  swipeActions.classList.add('hidden');
+  swipeHint.classList.add('hidden');
+  const resetDate = new Date();
+  resetDate.setMonth(resetDate.getMonth() + 1, 1);
+  resetDate.setHours(0, 0, 0, 0);
+  const resetStr = resetDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' });
+  cardArea.innerHTML = `
+    <div class="end-card card-enter">
+      <span class="emoji">🚦</span>
+      <h2>Monthly limit reached</h2>
+      <p>This app has hit its API call limit for the month.<br>
+         Resets on <strong>${resetStr}</strong>.<br><br>
+         Cached results from earlier searches still work —
+         try the same location and filters again.</p>
+    </div>
+  `;
+  ctaBtn.textContent = '🔄  Try again';
+  ctaBtn.disabled = false;
+  ctaBtn.onclick = resetApp;
+}
+
+// ── Pick and show ─────────────────────────────────────────────────
+async function pickAndShow() {
+  if (state.restaurants.length === 0) {
+    cardArea.innerHTML = `
+      <div class="end-card card-enter">
+        <span class="emoji">🤷</span>
+        <h2>Nothing nearby</h2>
+        <p>No restaurants found in that area.<br>Try a bigger radius or different cuisine.</p>
+      </div>
+    `;
+    cardArea.classList.remove('hidden');
+    swipeActions.classList.add('hidden');
+    swipeHint.classList.add('hidden');
+    ctaBtn.textContent = '🔄  Try again';
+    ctaBtn.disabled = false;
+    ctaBtn.onclick = resetApp;
+    return;
+  }
+  const restaurant = pickRandom();
+  state.currentRestaurant = restaurant;
+  cardArea.classList.remove('hidden');
+  swipeActions.classList.remove('hidden');
+  swipeHint.classList.remove('hidden');
+  renderCard(restaurant);
+}
+
+// ── Reset ─────────────────────────────────────────────────────────
+function resetApp() {
+  state.spinsLeft         = 3;
+  state.restaurants       = [];
+  state.shownIndexes      = [];
+  state.currentRestaurant = null;
+  updateSpinDots();
+  cardArea.classList.add('hidden');
+  cardArea.innerHTML = '';
+  swipeActions.classList.add('hidden');
+  swipeHint.classList.add('hidden');
+  ctaBtn.textContent = '🍽️  Where should we eat?';
+  ctaBtn.onclick = onCtaClick;
+  ctaBtn.disabled = false;
+  document.getElementById('filters').style.display = '';
+}
+
+// ── Main CTA handler ──────────────────────────────────────────────
+async function onCtaClick() {
+  if (state.isLoading) return;
+  state.isLoading = true;
+  ctaBtn.disabled = true;
+  ctaBtn.innerHTML = `<div class="loading-dots"><span></span><span></span><span></span></div>`;
+  document.getElementById('filters').style.display = 'none';
+
+  try {
+    // Step 1: Get location
+    if (state.userLat === null) {
+      showToast('Finding you... 📍');
+      const loc = await getUserLocation();
+      state.userLat = loc.lat;
+      state.userLng = loc.lng;
+    }
+
+    // Step 2: Get restaurants (from cache or API)
+    if (state.restaurants.length === 0) {
+      showToast('Scouting the scene... 🔍');
+      const radius  = parseInt(radiusSlider.value, 10);
+      const cuisine = cuisineFilter.value;
+      state.restaurants = await getRestaurants(state.userLat, state.userLng, radius, cuisine);
+    }
+
+    // Step 3: Show a card
+    await pickAndShow();
+
+  } catch (err) {
+    console.error(err);
+    document.getElementById('filters').style.display = '';
+    cardArea.classList.remove('hidden');
+
+    if (err instanceof LimitError) {
+      showLimitReached();
+    } else {
+      showToast('Oof: ' + err.message, 5000);
+      ctaBtn.innerHTML = '🍽️  Where should we eat?';
+      ctaBtn.disabled = false;
+      state.isLoading = false;
+      return;
+    }
+  }
+
+  ctaBtn.innerHTML = '🍽️  Where should we eat?';
+  ctaBtn.disabled = true;
+  state.isLoading = false;
+}
+
+// ── Radius slider ─────────────────────────────────────────────────
+radiusSlider.addEventListener('input', () => {
+  const km = (radiusSlider.value / 1000).toFixed(radiusSlider.value < 1000 ? 1 : 0);
+  radiusLabel.textContent = `${km} km`;
+  const pct = ((radiusSlider.value - radiusSlider.min) / (radiusSlider.max - radiusSlider.min)) * 100;
+  radiusSlider.style.setProperty('--pct', `${pct}%`);
+  // Clear restaurant cache when radius changes so we refetch
+  state.restaurants = [];
+  state.shownIndexes = [];
+});
+radiusSlider.dispatchEvent(new Event('input'));
+
+// Clear restaurant cache when cuisine changes
+cuisineFilter.addEventListener('change', () => {
+  state.restaurants = [];
+  state.shownIndexes = [];
+});
+
+// ── Button listeners ──────────────────────────────────────────────
+btnNo.addEventListener('click', handleNo);
+btnYes.addEventListener('click', handleYes);
+ctaBtn.addEventListener('click', onCtaClick);
+
+// ── Init ──────────────────────────────────────────────────────────
+updateSpinDots();
+
+/* ================================================================
+   PRODUCTION NOTE — CORS & API KEY SECURITY
+   ================================================================
+   The Places JSON API blocks direct browser requests (CORS).
+   This file uses corsproxy.io as a dev workaround, which also
+   means your API key is visible in the browser source.
+
+   For production on Vercel, create an /api/places.js serverless
+   function that proxies the request server-side, keeping the key
+   in a Vercel environment variable:
+
+   // api/places.js
+   export default async function handler(req, res) {
+     const { lat, lng, radius, keyword } = req.query;
+     const key = process.env.GOOGLE_API_KEY;
+     const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json`
+               + `?location=${lat},${lng}&radius=${radius}&type=restaurant`
+               + `${keyword ? '&keyword=' + keyword : ''}&key=${key}`;
+     const r = await fetch(url);
+     const data = await r.json();
+     res.json(data);
+   }
+
+   Then change the fetch URL in this file to:
+   `/api/places?lat=${lat}&lng=${lng}&radius=${radiusM}${cuisine ? '&keyword=' + cuisine : ''}`
+================================================================ */
+</script>
+</body>
+</html>
