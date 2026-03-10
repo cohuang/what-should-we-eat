@@ -19,8 +19,13 @@
     Raise it once you're comfortable with usage.
   ============================================================ -->
   <script>
+    // ── Set to true to test without using any API credits ──────────
+    const MOCK_MODE = true;  // ← change to false when going live
+
+    // API key lives in Vercel as environment variable GOOGLE_API_KEY
+    // — never put it here. The /api/places serverless function handles it.
     const MONTHLY_CALL_LIMIT = 500;
-    const CACHE_TTL_HOURS    = 24; // How long to cache results in localStorage
+    const CACHE_TTL_HOURS    = 24;
   </script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -413,6 +418,18 @@
     }
     #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 
+    /* ─── Mock mode banner ─────────────────────────────────────── */
+    #mock-banner {
+      background: var(--gold);
+      color: var(--ink);
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-align: center;
+      padding: 6px 16px;
+      border-radius: 100px;
+      letter-spacing: 0.04em;
+    }
+
     /* ─── Utilities ─────────────────────────────────────────────── */
     .hidden { display: none !important; }
   </style>
@@ -434,6 +451,9 @@
     <div class="spin-dot" id="dot-2"></div>
     <span id="spins-label">3 spins left</span>
   </div>
+
+  <!-- Mock mode banner -->
+  <div id="mock-banner" class="hidden">⚠️ Mock mode — fake data, no API calls</div>
 
   <!-- Filters -->
   <div class="filters" id="filters">
@@ -635,6 +655,36 @@ function starsFor(rating) {
   return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(empty);
 }
 
+// ── Mock restaurant data (used when MOCK_MODE = true) ─────────────
+const MOCK_RESTAURANTS = [
+  { name: 'Sakura Japanese Kitchen',   rating: 4.5, totalRatings: 312, address: '123 Eagle St, Brisbane City',     lat: -27.4698, lng: 153.0251, placeId: 'mock1', priceLevel: 2, openNow: true  },
+  { name: 'Bella Napoli',              rating: 4.3, totalRatings: 189, address: '45 Queen St, Brisbane City',      lat: -27.4712, lng: 153.0238, placeId: 'mock2', priceLevel: 2, openNow: true  },
+  { name: 'Spice Garden Indian',       rating: 4.6, totalRatings: 421, address: '78 Albert St, Brisbane City',     lat: -27.4680, lng: 153.0265, placeId: 'mock3', priceLevel: 1, openNow: false },
+  { name: 'The Grill on the Roof',     rating: 4.1, totalRatings: 98,  address: '200 Mary St, Brisbane City',      lat: -27.4730, lng: 153.0220, placeId: 'mock4', priceLevel: 3, openNow: true  },
+  { name: 'Pho Saigon',               rating: 4.4, totalRatings: 256, address: '12 Ann St, Fortitude Valley',     lat: -27.4601, lng: 153.0320, placeId: 'mock5', priceLevel: 1, openNow: true  },
+  { name: 'Seoul BBQ House',          rating: 4.7, totalRatings: 534, address: '88 Wickham St, Fortitude Valley', lat: -27.4590, lng: 153.0335, placeId: 'mock6', priceLevel: 2, openNow: true  },
+  { name: 'Chez Pierre',              rating: 4.2, totalRatings: 143, address: '5 Park Rd, Milton',               lat: -27.4750, lng: 152.9980, placeId: 'mock7', priceLevel: 3, openNow: false },
+  { name: 'Taco Loco',                rating: 3.9, totalRatings: 87,  address: '34 Caxton St, Paddington',        lat: -27.4620, lng: 152.9950, placeId: 'mock8', priceLevel: 1, openNow: true  },
+  { name: 'The Mediterranean Table',  rating: 4.5, totalRatings: 302, address: '19 Boundary St, West End',        lat: -27.4810, lng: 153.0100, placeId: 'mock9', priceLevel: 2, openNow: true  },
+  { name: 'Golden Dragon',            rating: 4.0, totalRatings: 178, address: '67 Duncan St, Fortitude Valley',  lat: -27.4605, lng: 153.0310, placeId: 'mock10', priceLevel: 1, openNow: false },
+];
+
+// Returns mock data after a fake delay so it feels realistic
+async function fetchMock(cuisine) {
+  await new Promise(r => setTimeout(r, 800)); // fake network delay
+  let results = [...MOCK_RESTAURANTS];
+  if (cuisine) {
+    // Loose filter — in mock mode just return all so you can test swiping
+    // (real API filters by keyword server-side)
+    results = results.filter(r =>
+      r.name.toLowerCase().includes(cuisine.toLowerCase())
+    );
+    // If nothing matches the cuisine filter, return all so flow still works
+    if (results.length === 0) results = [...MOCK_RESTAURANTS];
+  }
+  return results;
+}
+
 // Fetch from Google Places Nearby Search.
 // Returns an array of cleaned restaurant objects.
 // Throws if the API call limit has been reached.
@@ -648,22 +698,12 @@ async function fetchFromAPI(lat, lng, radiusM, cuisine) {
     );
   }
 
-  // Build the Places Nearby Search URL.
-  // The API doesn't support CORS from browsers on the JSON endpoint,
-  // so we route through a lightweight CORS proxy for development.
-  // For production on Vercel, replace this with a serverless function
-  // (see comment at the bottom of this file).
-  let url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json`
-          + `?location=${lat},${lng}`
-          + `&radius=${radiusM}`
-          + `&type=restaurant`
-          + `&key=${GOOGLE_API_KEY}`;
+  // Build the URL to our own Vercel serverless function.
+  // The function runs server-side and keeps the API key hidden.
+  let apiUrl = `/api/places?lat=${lat}&lng=${lng}&radius=${radiusM}`;
+  if (cuisine) apiUrl += `&keyword=${encodeURIComponent(cuisine)}`;
 
-  if (cuisine) url += `&keyword=${encodeURIComponent(cuisine)}`;
-
-  const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-
-  const res = await fetch(proxyUrl);
+  const res = await fetch(apiUrl);
   if (!res.ok) throw new Error(`Network error: ${res.status}`);
   const data = await res.json();
 
@@ -696,10 +736,19 @@ class LimitError extends Error {
 }
 
 // ── Main data-fetch function with cache layers ─────────────────────
-// 1. Check in-memory session cache (free, instant)
-// 2. Check localStorage cache (free, persists across reloads)
-// 3. Call the API (costs a credit, increments counter)
+// In MOCK_MODE: returns fake data instantly, no API calls ever.
+// In live mode:
+//   1. Check in-memory session cache (free, instant)
+//   2. Check localStorage cache (free, persists across reloads)
+//   3. Call the API (costs a credit, increments counter)
 async function getRestaurants(lat, lng, radiusM, cuisine) {
+
+  // ── Mock mode — no API calls, no credits used ─────────────────
+  if (MOCK_MODE) {
+    console.log('[mock] returning fake data — no API call made');
+    return fetchMock(cuisine);
+  }
+
   const key = cacheKey(lat, lng, radiusM, cuisine);
 
   // Layer 1: session cache
@@ -1040,6 +1089,9 @@ ctaBtn.addEventListener('click', onCtaClick);
 
 // ── Init ──────────────────────────────────────────────────────────
 updateSpinDots();
+if (MOCK_MODE) {
+  document.getElementById('mock-banner').classList.remove('hidden');
+}
 
 /* ================================================================
    PRODUCTION NOTE — CORS & API KEY SECURITY
