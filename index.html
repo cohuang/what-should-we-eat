@@ -194,9 +194,9 @@
     #cta-btn {
       width: 100%;
       padding: 20px 28px;
-      font-family: 'Playfair Display', serif;
-      font-size: 1.3rem;
-      font-weight: 700;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 600;
       color: white;
       background: var(--rust);
       border: none;
@@ -796,7 +796,7 @@ function renderCard(restaurant, chosen = false) {
   const mapsUrl = `https://www.google.com/maps/place/?q=place_id:${restaurant.placeId}`;
 
   const chosenHeader = chosen
-    ? `<div style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;opacity:0.75;">You're going to...</div>`
+    ? `<div style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;color:white;opacity:0.85;">You're going to...</div>`
     : '';
 
   cardArea.innerHTML = `
@@ -862,15 +862,16 @@ function handleYes() {
   swipeHint.classList.add('hidden');
   renderCard(state.currentRestaurant, true);
   showToast("Yesss! Let's eat 🎉", 4000);
-  ctaBtn.textContent = '🔄  Start over';
+  ctaBtn.innerHTML = '<i class="fa-solid fa-rotate-left"></i> &nbsp;Start over';
   ctaBtn.disabled = false;
   ctaBtn.onclick = resetApp;
 }
 
 // ── Restore no-picks state on page load (if already exhausted) ───
 function showNoPicksOnLoad() {
-  ctaBtn.disabled = true;
+  ctaBtn.style.display = 'none';
   document.getElementById('filters').style.display = 'none';
+  cardArea.classList.remove('hidden');
   showNoPicks();
 }
 
@@ -882,7 +883,7 @@ function showNoPicks() {
     <div class="end-card card-enter">
       <span class="emoji">😬</span>
       <h2>You're out of picks</h2>
-      <p>You've had your 3 chances.<br>Time to pick one or just eat at home.</p>
+      <p>You've had your 3 chances.<br>Time to commit to one of those options.</p>
     </div>
   `;
   ctaBtn.style.display = 'none';
@@ -951,7 +952,7 @@ function resetApp() {
   swipeActions.classList.add('hidden');
   swipeHint.classList.add('hidden');
   ctaBtn.style.display = '';
-  ctaBtn.textContent = '🍽️  Where should we eat?';
+  ctaBtn.innerHTML = '<i class="fa-solid fa-bowl-food"></i> &nbsp;Where should we eat?';
   ctaBtn.onclick = onCtaClick;
   ctaBtn.disabled = false;
   document.getElementById('filters').style.display = '';
@@ -961,8 +962,7 @@ function resetApp() {
 async function onCtaClick() {
   if (state.isLoading) return;
   state.isLoading = true;
-  ctaBtn.disabled = true;
-  ctaBtn.innerHTML = `<div class="loading-dots"><span></span><span></span><span></span></div>`;
+  ctaBtn.style.display = 'none';
   document.getElementById('filters').style.display = 'none';
 
   try {
@@ -1001,8 +1001,6 @@ async function onCtaClick() {
     }
   }
 
-  ctaBtn.innerHTML = '🍽️  Where should we eat?';
-  ctaBtn.disabled = true;
   state.isLoading = false;
 }
 
