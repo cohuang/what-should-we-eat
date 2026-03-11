@@ -194,9 +194,9 @@
     #cta-btn {
       width: 100%;
       padding: 20px 28px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 1.1rem;
-      font-weight: 600;
+      font-family: 'Playfair Display', serif;
+      font-size: 1.3rem;
+      font-weight: 700;
       color: white;
       background: var(--rust);
       border: none;
@@ -455,15 +455,15 @@
   </div>
 
   <!-- Main CTA -->
-  <button id="cta-btn">🍽️ &nbsp;Where should we eat?</button>
+  <button id="cta-btn">Where should we eat?</button>
 
   <!-- Restaurant card (injected by JS) -->
   <div id="card-area" class="hidden"></div>
 
   <!-- Swipe buttons -->
   <div id="swipe-actions" class="swipe-actions hidden">
-    <button class="swipe-btn no"  id="btn-no" >👎 &nbsp;Nope</button>
-    <button class="swipe-btn yes" id="btn-yes">👍 &nbsp;Let's go!</button>
+    <button class="swipe-btn no"  id="btn-no" >Nope</button>
+    <button class="swipe-btn yes" id="btn-yes">Let's go!</button>
   </div>
 
   <!-- Swipe hint -->
@@ -862,7 +862,7 @@ function handleYes() {
   swipeHint.classList.add('hidden');
   renderCard(state.currentRestaurant, true);
   showToast("Yesss! Let's eat 🎉", 4000);
-  ctaBtn.innerHTML = '<i class="fa-solid fa-rotate-left"></i> &nbsp;Start over';
+  ctaBtn.textContent = 'Start over';
   ctaBtn.disabled = false;
   ctaBtn.onclick = resetApp;
 }
@@ -908,7 +908,7 @@ function showLimitReached() {
          try the same location and filters again.</p>
     </div>
   `;
-  ctaBtn.textContent = '🔄  Try again';
+  ctaBtn.textContent = 'Try again';
   ctaBtn.disabled = false;
   ctaBtn.onclick = resetApp;
 }
@@ -926,7 +926,7 @@ async function pickAndShow() {
     cardArea.classList.remove('hidden');
     swipeActions.classList.add('hidden');
     swipeHint.classList.add('hidden');
-    ctaBtn.textContent = '🔄  Try again';
+    ctaBtn.textContent = 'Try again';
     ctaBtn.disabled = false;
     ctaBtn.onclick = resetApp;
     return;
@@ -952,7 +952,7 @@ function resetApp() {
   swipeActions.classList.add('hidden');
   swipeHint.classList.add('hidden');
   ctaBtn.style.display = '';
-  ctaBtn.innerHTML = '<i class="fa-solid fa-bowl-food"></i> &nbsp;Where should we eat?';
+  ctaBtn.textContent = 'Where should we eat?';
   ctaBtn.onclick = onCtaClick;
   ctaBtn.disabled = false;
   document.getElementById('filters').style.display = '';
@@ -994,7 +994,7 @@ async function onCtaClick() {
       showLimitReached();
     } else {
       showToast('Oof: ' + err.message, 5000);
-      ctaBtn.innerHTML = '🍽️  Where should we eat?';
+      ctaBtn.textContent = 'Where should we eat?';
       ctaBtn.disabled = false;
       state.isLoading = false;
       return;
