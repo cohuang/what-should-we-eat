@@ -416,6 +416,288 @@
       letter-spacing: 0.04em;
     }
 
+
+    /* ─── Bottom nav bar ────────────────────────────────────────── */
+    #bottom-nav {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 64px;
+      background: white;
+      border-top: 1px solid rgba(0,0,0,0.07);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      z-index: 200;
+      box-shadow: 0 -4px 20px rgba(28,23,19,0.06);
+    }
+    .nav-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 8px 20px;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      transition: color 0.15s;
+      position: relative;
+    }
+    .nav-btn i { font-size: 1.15rem; }
+    .nav-btn:hover { color: var(--rust); }
+    .nav-btn.active { color: var(--rust); }
+    .nav-badge {
+      position: absolute;
+      top: 4px; right: 12px;
+      background: var(--rust);
+      color: white;
+      font-size: 0.6rem;
+      font-weight: 700;
+      min-width: 16px;
+      height: 16px;
+      border-radius: 100px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+    }
+
+    /* ─── Slide-up panel ────────────────────────────────────────── */
+    .panel-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(28,23,19,0.4);
+      z-index: 300;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s var(--trans);
+    }
+    .panel-overlay.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .panel {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      max-height: 80dvh;
+      background: var(--cream);
+      border-radius: 24px 24px 0 0;
+      z-index: 400;
+      transform: translateY(100%);
+      transition: transform 0.35s var(--trans);
+      display: flex;
+      flex-direction: column;
+    }
+    .panel.open { transform: translateY(0); }
+    .panel-handle {
+      width: 40px; height: 4px;
+      background: rgba(0,0,0,0.12);
+      border-radius: 100px;
+      margin: 12px auto 0;
+      flex-shrink: 0;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px 12px;
+      flex-shrink: 0;
+    }
+    .panel-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .panel-close {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 1.1rem;
+      padding: 4px;
+    }
+    .panel-body {
+      overflow-y: auto;
+      padding: 0 20px 80px;
+      flex: 1;
+    }
+
+    /* ─── Leaderboard list ──────────────────────────────────────── */
+    .lb-empty, .wl-empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+    .lb-empty strong, .wl-empty strong {
+      display: block;
+      font-family: 'Playfair Display', serif;
+      font-size: 1.1rem;
+      color: var(--ink);
+      margin-bottom: 8px;
+    }
+    .lb-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+    .lb-item:last-child { border-bottom: none; }
+    .lb-rank {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.3rem;
+      font-weight: 900;
+      color: var(--warm);
+      width: 28px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .lb-rank.gold   { color: var(--gold); }
+    .lb-rank.silver { color: #A0A0A0; }
+    .lb-rank.bronze { color: #C87941; }
+    .lb-info { flex: 1; min-width: 0; }
+    .lb-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .lb-address {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .lb-count {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--rust);
+      background: rgba(193,68,14,0.08);
+      padding: 3px 8px;
+      border-radius: 100px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .lb-city-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      padding: 16px 0 8px;
+    }
+
+    /* ─── Wishlist list ─────────────────────────────────────────── */
+    .wl-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+    .wl-item:last-child { border-bottom: none; }
+    .wl-info { flex: 1; min-width: 0; }
+    .wl-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--ink);
+    }
+    .wl-meta {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+    .wl-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .wl-maps {
+      font-size: 0.78rem;
+      color: var(--rust);
+      text-decoration: none;
+      font-weight: 500;
+      border-bottom: 1px solid var(--rust);
+    }
+    .wl-remove {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding: 2px;
+      transition: color 0.15s;
+    }
+    .wl-remove:hover { color: var(--red); }
+
+    /* ─── Heart button on card ──────────────────────────────────── */
+    /* ─── App bottom padding so content clears nav bar ─────────── */
+    #app { padding-bottom: 80px; }
+
+
+    /* ─── Trending section ──────────────────────────────────────── */
+    #trending-section {
+      width: 100%;
+    }
+    .trending-heading {
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .trending-heading i { color: var(--rust); }
+    .trending-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 0;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+    .trending-item:last-child { border-bottom: none; }
+    .trending-rank {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.1rem;
+      font-weight: 900;
+      width: 22px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .trending-info { flex: 1; min-width: 0; }
+    .trending-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--ink);
+      text-decoration: none;
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .trending-name:hover { color: var(--rust); }
+    .trending-meta {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
     /* ─── Utilities ─────────────────────────────────────────────── */
     .hidden { display: none !important; }
   </style>
@@ -495,7 +777,14 @@
     ← swipe left to skip &nbsp;·&nbsp; swipe right to vibe ✌️
   </div>
 
+  <!-- Trending this week -->
+  <div id="trending-section" class="hidden">
+    <div class="trending-heading">Trending this week</div>
+    <div id="trending-list"></div>
+  </div>
+
 </div>
+
 
 <!-- Toast -->
 <div id="toast"></div>
@@ -879,6 +1168,7 @@ function renderCard(restaurant, chosen = false) {
   if (!chosen) setupSwipe();
 }
 
+
 // ── Swipe interaction ──────────────────────────────────────────────
 function setupSwipe() {
   const card = document.getElementById('the-card');
@@ -925,6 +1215,8 @@ async function handleNo() {
 function handleYes() {
   swipeActions.classList.add('hidden');
   swipeHint.classList.add('hidden');
+  // Record this pick in the leaderboard
+  if (state.currentRestaurant) recordPick(state.currentRestaurant);
   renderCard(state.currentRestaurant, true);
   showToast("Yesss! Let's eat 🎉", 4000);
   ctaBtn.textContent = 'Start over';
@@ -1062,6 +1354,92 @@ async function onCtaClick() {
   state.isLoading = false;
 }
 
+
+// ══════════════════════════════════════════════════════════════════
+//  TRENDING — top 5 picks this week, resets every Monday
+//  Stored in localStorage as:
+//  lb_picks → { placeId: { name, address, placeId, rating,
+//                           priceLevel, picks: { "YYYY-Www": count } } }
+// ══════════════════════════════════════════════════════════════════
+
+function getWeekKey() {
+  const d    = new Date();
+  const jan4 = new Date(d.getFullYear(), 0, 4);
+  const week = Math.ceil(((d - jan4) / 86400000 + jan4.getDay() + 1) / 7);
+  return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+function loadLeaderboard() {
+  try { return JSON.parse(localStorage.getItem('lb_picks') || '{}'); }
+  catch { return {}; }
+}
+
+function saveLeaderboard(data) {
+  try { localStorage.setItem('lb_picks', JSON.stringify(data)); }
+  catch {}
+}
+
+function recordPick(restaurant) {
+  const lb = loadLeaderboard();
+  const id = restaurant.placeId;
+  const wk = getWeekKey();
+  if (!lb[id]) {
+    lb[id] = {
+      name: restaurant.name,
+      address: restaurant.address,
+      placeId: id,
+      rating: restaurant.rating || null,
+      priceLevel: restaurant.priceLevel || null,
+      picks: {}
+    };
+  }
+  lb[id].picks[wk] = (lb[id].picks[wk] || 0) + 1;
+  saveLeaderboard(lb);
+  renderTrending();
+}
+
+function renderTrending() {
+  const section = document.getElementById('trending-section');
+  const list    = document.getElementById('trending-list');
+  if (!section || !list) return;
+
+  const lb = loadLeaderboard();
+  const wk = getWeekKey();
+
+  const thisWeek = Object.values(lb)
+    .filter(r => (r.picks[wk] || 0) > 0)
+    .sort((a, b) => (b.picks[wk] || 0) - (a.picks[wk] || 0))
+    .slice(0, 5);
+
+  if (thisWeek.length === 0) {
+    section.classList.add('hidden');
+    return;
+  }
+
+  section.classList.remove('hidden');
+
+  const rankColors = ['var(--muted)', 'var(--muted)', 'var(--muted)', 'var(--muted)', 'var(--muted)'];
+
+  list.innerHTML = thisWeek.map((r, i) => {
+    const count   = r.picks[wk];
+    const mapsUrl = `https://www.google.com/maps/place/?q=place_id:${r.placeId}`;
+    const parts   = [];
+    if (r.rating)     parts.push(`${r.rating} <i class="fa-solid fa-star" style="color:var(--gold);font-size:0.7rem"></i>`);
+    if (r.priceLevel) parts.push('$'.repeat(r.priceLevel));
+    const meta = parts.join(' <span style="color:var(--muted)">·</span> ');
+    return `
+      <div class="trending-item">
+        <div class="trending-rank" style="color:${rankColors[i]}">${i + 1}</div>
+        <div class="trending-info">
+          <a href="${mapsUrl}" target="_blank" rel="noopener" class="trending-name">${r.name}</a>
+          ${meta ? `<div class="trending-meta">${meta}</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+
+
 // ── Radius slider ─────────────────────────────────────────────────
 radiusSlider.addEventListener('input', () => {
   const km = (radiusSlider.value / 1000).toFixed(radiusSlider.value < 1000 ? 1 : 0);
@@ -1101,6 +1479,28 @@ if (savedPicks !== null) {
   }
 }
 updatePickDots();
+
+// In mock mode, seed fake trending data so the section is visible during testing
+if (MOCK_MODE) {
+  const wk  = getWeekKey();
+  const seed = [
+    { placeId:'mock6', name:'Seoul BBQ House',        address:'88 Wickham St, Fortitude Valley', rating:4.7, priceLevel:2, picks:5 },
+    { placeId:'mock1', name:'Sakura Japanese Kitchen', address:'123 Eagle St, Brisbane City',     rating:4.5, priceLevel:2, picks:4 },
+    { placeId:'mock5', name:'Pho Saigon',              address:'12 Ann St, Fortitude Valley',     rating:4.4, priceLevel:1, picks:3 },
+    { placeId:'mock9', name:'The Mediterranean Table', address:'19 Boundary St, West End',        rating:4.5, priceLevel:2, picks:2 },
+    { placeId:'mock8', name:'Taco Loco',               address:'34 Caxton St, Paddington',        rating:3.9, priceLevel:1, picks:1 },
+  ];
+  const lb = loadLeaderboard();
+  seed.forEach(r => {
+    if (!lb[r.placeId]) {
+      lb[r.placeId] = { name:r.name, address:r.address, placeId:r.placeId, rating:r.rating, priceLevel:r.priceLevel, picks:{} };
+    }
+    lb[r.placeId].picks[wk] = r.picks;
+  });
+  saveLeaderboard(lb);
+}
+
+renderTrending(); // called AFTER seed so data is ready
 if (MOCK_MODE) {
   document.getElementById('mock-banner').classList.remove('hidden');
 }
