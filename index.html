@@ -448,6 +448,16 @@
       </select>
     </div>
     <div class="filter-row">
+      <label>Price range</label>
+      <select id="price-filter">
+        <option value="">Any price</option>
+        <option value="1">$ — Cheap eats</option>
+        <option value="2">$$ — Mid-range</option>
+        <option value="3">$$$ — Pricier</option>
+        <option value="4">$$$$ — Special occasion</option>
+      </select>
+    </div>
+    <div class="filter-row">
       <label>Search radius</label>
       <input type="range" id="radius-slider" min="500" max="5000" step="500" value="3000" />
       <div class="range-label" id="radius-label">3 km</div>
@@ -509,6 +519,7 @@ const btnYes        = document.getElementById('btn-yes');
 const radiusSlider  = document.getElementById('radius-slider');
 const radiusLabel   = document.getElementById('radius-label');
 const cuisineFilter = document.getElementById('cuisine-filter');
+const priceFilter   = document.getElementById('price-filter');
 const toast         = document.getElementById('toast');
 
 // ── Utility: sleep ─────────────────────────────────────────────────
@@ -646,15 +657,7 @@ async function fetchMock(cuisine) {
   await new Promise(r => setTimeout(r, 800)); // fake network delay
   // Filter out closed restaurants
   let results = MOCK_RESTAURANTS.filter(r => r.openNow !== false);
-  if (cuisine) {
-    // Loose filter — in mock mode just return all so you can test swiping
-    // (real API filters by keyword server-side)
-    results = results.filter(r =>
-      r.name.toLowerCase().includes(cuisine.toLowerCase())
-    );
-    // If nothing matches the cuisine filter, return all so flow still works
-    if (results.length === 0) results = [...MOCK_RESTAURANTS];
-  }
+  if (cuisine && cuisine !== '') results = results.filter(r => r.name.toLowerCase().includes(cuisine.toLowerCase()));
   return results;
 }
 
@@ -706,6 +709,26 @@ async function fetchFromAPI(lat, lng, radiusM, cuisine) {
   }));
 }
 
+// ── Scan localStorage for any previously cached results ──────────
+// Called when the global quota is hit. Looks through all stored
+// cache entries and returns the first valid one it finds, ignoring
+// the 24h TTL since we'd rather show slightly stale data than nothing.
+function findAnyCachedRestaurants() {
+  try {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('places_'));
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const { data } = JSON.parse(raw);
+      if (Array.isArray(data) && data.length > 0) {
+        console.log('[cache] quota fallback — using stale cache:', key);
+        return data;
+      }
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
 // Custom error class so we can distinguish limit errors from API errors
 class LimitError extends Error {
   constructor(msg) { super(msg); this.name = 'LimitError'; }
@@ -722,15 +745,16 @@ async function getRestaurants(lat, lng, radiusM, cuisine) {
   // ── Mock mode — no API calls, no credits used ─────────────────
   if (MOCK_MODE) {
     console.log('[mock] returning fake data — no API call made');
-    return fetchMock(cuisine);
+    const mockResults = await fetchMock(cuisine);
+    return filterByPrice(mockResults, priceFilter.value);
   }
 
   const key = cacheKey(lat, lng, radiusM, cuisine);
 
-  // Layer 1: session cache
+  // Layer 1: session cache (price filtered client-side so doesn't affect cache key)
   if (state.sessionCache[key]) {
     console.log('[cache] session hit:', key);
-    return state.sessionCache[key];
+    return filterByPrice(state.sessionCache[key], priceFilter.value);
   }
 
   // Layer 2: localStorage cache
@@ -738,18 +762,42 @@ async function getRestaurants(lat, lng, radiusM, cuisine) {
   if (cached) {
     console.log('[cache] localStorage hit:', key);
     state.sessionCache[key] = cached; // promote to session
-    return cached;
+    return filterByPrice(cached, priceFilter.value);
   }
 
   // Layer 3: live API call
   console.log(`[api] fetching (call ${getCallCount() + 1}/${MONTHLY_CALL_LIMIT}):`, key);
-  const results = await fetchFromAPI(lat, lng, radiusM, cuisine);
+  let results;
+  try {
+    results = await fetchFromAPI(lat, lng, radiusM, cuisine);
+  } catch (err) {
+    if (err instanceof LimitError) {
+      // Global quota hit — try to serve from any cached data we have
+      const fallback = findAnyCachedRestaurants();
+      if (fallback) {
+        console.log('[cache] serving quota fallback silently');
+        state.sessionCache[key] = fallback;
+        return fallback;
+      }
+      // No cache anywhere — surface the limit message
+      throw err;
+    }
+    throw err;
+  }
 
-  // Store in both cache layers
+  // Store unfiltered results in cache so price changes don't require a new API call
   writeCache(key, results);
   state.sessionCache[key] = results;
 
-  return results;
+  return filterByPrice(results, priceFilter.value);
+}
+
+// ── Filter results by price level ────────────────────────────────
+// Called after fetching (API returns all prices, we filter client-side)
+function filterByPrice(restaurants, priceLevel) {
+  if (!priceLevel) return restaurants;
+  const level = parseInt(priceLevel, 10);
+  return restaurants.filter(r => r.priceLevel === level);
 }
 
 // ── Get user location ──────────────────────────────────────────────
@@ -1017,6 +1065,10 @@ radiusSlider.dispatchEvent(new Event('input'));
 
 // Clear restaurant cache when cuisine changes
 cuisineFilter.addEventListener('change', () => {
+  state.restaurants = [];
+  state.shownIndexes = [];
+});
+priceFilter.addEventListener('change', () => {
   state.restaurants = [];
   state.shownIndexes = [];
 });
