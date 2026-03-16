@@ -680,8 +680,11 @@ async function fetchFromAPI(lat, lng, radiusM, cuisine) {
   if (!res.ok) throw new Error(`Network error: ${res.status}`);
   const data = await res.json();
 
+  if (data.status === 'QUOTA_EXCEEDED') {
+    throw new LimitError('QUOTA_EXCEEDED');
+  }
   if (data.status === 'REQUEST_DENIED') {
-    throw new Error('API key error: ' + (data.error_message || 'Check your key in the script tag.'));
+    throw new Error('API key error: ' + (data.error_message || 'Check your key.'));
   }
   if (data.status === 'ZERO_RESULTS') return [];
   if (data.status !== 'OK') throw new Error('Places API: ' + data.status);
@@ -900,17 +903,13 @@ function showLimitReached() {
   const resetStr = resetDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' });
   cardArea.innerHTML = `
     <div class="end-card card-enter">
-      <span class="emoji">🚦</span>
-      <h2>Monthly limit reached</h2>
-      <p>This app has hit its API call limit for the month.<br>
-         Resets on <strong>${resetStr}</strong>.<br><br>
-         Cached results from earlier searches still work —
-         try the same location and filters again.</p>
+      <span class="emoji">😴</span>
+      <h2>We're taking a breather</h2>
+      <p>This app gets a lot of love and we've hit our limit for the month.<br><br>
+         Come back on <strong>${resetStr}</strong> — we'll be ready to help again.</p>
     </div>
   `;
-  ctaBtn.textContent = 'Try again';
-  ctaBtn.disabled = false;
-  ctaBtn.onclick = resetApp;
+  ctaBtn.style.display = 'none';
 }
 
 // ── Pick and show ─────────────────────────────────────────────────
