@@ -358,6 +358,20 @@
     .end-card .emoji { font-size: 2.5rem; display: block; margin-bottom: 12px; }
     .end-card h2 { font-family: 'Playfair Display', serif; font-size: 1.3rem; margin-bottom: 8px; }
     .end-card p  { font-size: 0.88rem; color: var(--muted); line-height: 1.5; }
+    .end-card-btn {
+      margin-top: 18px;
+      padding: 12px 28px;
+      font-family: 'Playfair Display', serif;
+      font-size: 1rem;
+      font-weight: 700;
+      color: white;
+      background: var(--rust);
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.15s;
+    }
+    .end-card-btn:hover { background: var(--rust-dk); transform: translateY(-1px); }
 
     /* ─── Animations ────────────────────────────────────────────── */
     @keyframes cardIn {
@@ -965,17 +979,14 @@ async function pickAndShow() {
   if (state.restaurants.length === 0) {
     cardArea.innerHTML = `
       <div class="end-card card-enter">
-        <span class="emoji">🤷</span>
         <h2>Nothing nearby</h2>
         <p>No restaurants found in that area.<br>Try a bigger radius or different cuisine.</p>
+        <button class="end-card-btn" onclick="resetApp()">Try again</button>
       </div>
     `;
     cardArea.classList.remove('hidden');
     swipeActions.classList.add('hidden');
     swipeHint.classList.add('hidden');
-    ctaBtn.textContent = 'Try again';
-    ctaBtn.disabled = false;
-    ctaBtn.onclick = resetApp;
     return;
   }
   const restaurant = pickRandom();
